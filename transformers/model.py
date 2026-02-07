@@ -144,7 +144,7 @@ class MultiHeadAttention(nn.Module):
         # score_matrix is of dim (X, Y, Y) and represents how much each token attends to each other
         score_matrix = torch.matmul(Q, torch.transpose(K, -2, -1)) / (d_k ** 0.5)
         # tokens should only attend to previous tokens, we need to null the rest
-        nullify = torch.triu(torch.full(score_matrix.shape, float('-inf')), diagonal=1)
+        nullify = torch.triu(torch.full(score_matrix.shape, float('-inf'), device=Q.device), diagonal=1)
         score_matrix += nullify
 
         return torch.matmul(torch.softmax(score_matrix, -1), V)

@@ -1,3 +1,5 @@
+import argparse
+import time
 import torch
 import torch.nn.functional as F
 from model import GPT
@@ -23,20 +25,22 @@ def generate_batch(seq_len, batch_size):
     y = full[:, 1:]
     return x, y
 
-def train():
+def train(device):
     NUM_LOOPS = 1000
-    BATCH_SIZE = 32
+    BATCH_SIZE = 64
     LR = 3e-4
-    d_model = 64
+    d_model = 257
     n_heads = 8
     vocab_size = 11
-    n_layers = 2
+    n_layers = 8
     max_seq_len = SEQ_LEN * 2 # for this example we use [1,2,3,SEP,3,2] as input
-    model = GPT(d_model, n_heads, vocab_size, max_seq_len, n_layers)
+    model = GPT(d_model, n_heads, vocab_size, max_seq_len, n_layers).to(device)
     optim = torch.optim.Adam(model.parameters(), LR)
 
+    start = time.time()
     for n in range(NUM_LOOPS):
         x, y = generate_batch(SEQ_LEN, BATCH_SIZE)
+        x, y = x.to(device), y.to(device)
         logits = model(x)
         # For the loss we don't care about the batch dimension
         # The logits are in shape (BATCH_SIZE, seq_len * 2, vocab_size).
@@ -51,12 +55,14 @@ def train():
         optim.zero_grad()
         loss.backward()
         optim.step()
+    elapsed = time.time() - start
+    print(f"\nTraining took {elapsed:.2f}s on {device}")
     return model
 
-def test(model):
+def test(model, device):
     with torch.no_grad():
-        digits = torch.randint(0, 10, (1, SEQ_LEN))
-        prompt = torch.cat([digits, torch.full((1,1), SEP)], dim=1)
+        digits = torch.randint(0, 10, (1, SEQ_LEN), device=device)
+        prompt = torch.cat([digits, torch.full((1,1), SEP, device=device)], dim=1)
         for _ in range(SEQ_LEN):
             out = model(prompt)
             prediction = out[:, -1, :].argmax(dim=-1, keepdim=True)
@@ -66,8 +72,12 @@ def test(model):
         print(f"got:      {prompt[0, SEQ_LEN + 1:].tolist()}")
 
 if __name__ == "__main__":
-    model = train()
-    test(model)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--device", choices=["cpu", "mps"], default="cpu")
+    args = parser.parse_args()
+    device = torch.device(args.device)
+    model = train(device)
+    test(model, device)
 
 
 
