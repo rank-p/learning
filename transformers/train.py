@@ -27,7 +27,7 @@ def generate_batch(seq_len, batch_size):
 
 def train(device):
     NUM_LOOPS = 1000
-    BATCH_SIZE = 64
+    BATCH_SIZE = 512
     LR = 3e-4
     d_model = 257
     n_heads = 8
