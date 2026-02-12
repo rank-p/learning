@@ -75,6 +75,16 @@ class RDD:
             result.extend(self.compute(i).data)
         return result
 
+    def mapValues(self, map_fn):
+        # assuming data is of type list((key,value))
+        return self.map(lambda pair: (pair[0], map_fn(pair[1])))
+
+    def keys(self):
+        return self.map(lambda x: x[0])
+
+    def values(self):
+        return self.map(lambda x: x[1])
+
     @property
     def num_partitions(self) -> int:
         if self._partitions:
