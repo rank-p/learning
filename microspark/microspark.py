@@ -20,12 +20,6 @@ class RDD:
             assert self._parent is not None
             return self._transform_fn(self._parent.compute(partition_idx))
 
-    def collect(self) -> list:
-        result = []
-        for i in range(self.num_partitions):
-            result.extend(self.compute(i).data)
-        return result
-
     def map(self, map_fn) -> RDD:
         def _transform(p: Partition) -> Partition:
             return Partition(p._index, [map_fn(item) for item in p.data])
@@ -43,6 +37,43 @@ class RDD:
         def _transform(p: Partition) -> Partition:
             return Partition(p._index, [item for item in p.data if filter_fn(item)])
         return RDD(self._context, parent=self, transform_fn=_transform)
+
+    def reduce(self, reduce_fn):
+        # reduce within partitions
+        partials = []
+        for i in range(self.num_partitions):
+            data = self.compute(i).data
+            if not data:
+                continue
+            acc = data[0]
+            for item in data[1:]:
+                acc = reduce_fn(acc, item)
+            partials.append(acc)
+
+        if not partials:
+            raise ValueError("cannot reduce an empty RDD")
+    
+        acc = partials[0]
+        for v in partials[1:]:
+            acc = reduce_fn(acc, v)
+        return acc
+
+    def count(self) -> int:
+        return sum(len(self.compute(i).data) for i in range(self.num_partitions))
+
+    def take(self, n: int):
+        res = []
+        for i in range(self.num_partitions):
+            if len(res) >= n:
+                break
+            res.extend(self.compute(i).data)
+        return res
+
+    def collect(self) -> list:
+        result = []
+        for i in range(self.num_partitions):
+            result.extend(self.compute(i).data)
+        return result
 
     @property
     def num_partitions(self) -> int:

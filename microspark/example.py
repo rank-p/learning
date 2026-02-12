@@ -16,3 +16,9 @@ assert lazy._partitions == []
 
 print("Step 2 passed!")
 
+rdd = sc.parallelize(range(1, 11), 3)
+assert rdd.count() == 10
+assert rdd.reduce(lambda a, b: a + b) == 55
+assert rdd.take(3) == [1, 2, 3]
+assert len(rdd.take(100)) == 10  # asking for more than exists
+print("Step 3 passed!")
