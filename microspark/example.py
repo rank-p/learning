@@ -80,3 +80,20 @@ dag_rdd.draw_dag().render('dag', view=True)
 print("DAG graph rendered to dag.svg")
 
 print("Step 6 passed!")
+
+# ---------------------------------------------------------------------------
+# Step 8: Fault tolerance via lineage
+# ---------------------------------------------------------------------------
+ft_rdd = sc.parallelize(range(1, 11), 3).map(lambda x: x * 2).cache()
+assert ft_rdd.collect() == [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
+
+# Simulate losing partition 1
+ft_rdd.simulate_failure(1)
+assert ft_rdd._partitions[1] is None  # partition is gone
+
+# Collect again — should recompute partition 1 from lineage
+result = ft_rdd.collect()
+assert result == [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
+assert ft_rdd._partitions[1] is not None  # re-cached after recompute
+
+print("Step 8 passed!")

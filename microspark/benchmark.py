@@ -6,7 +6,7 @@ with open("pride_and_prejudice.txt") as f:
 
 print(f"Dataset: {len(lines)} lines, {sum(len(l.split()) for l in lines)} words")
 
-num_partitions = 2
+num_partitions = 10
 sc = SparkContext(max_workers=num_partitions)
 
 # Build pipeline step by step, timing each action

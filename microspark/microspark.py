@@ -17,16 +17,27 @@ class RDD:
         self._name = name
 
     def compute(self, partition_idx: int) -> Partition:
-        if self._partitions:
+        if self._partitions and self._partitions[partition_idx] is not None:
             return self._partitions[partition_idx]
-        else:
-            assert self._transform_fn is not None
-            assert self._parent is not None
-            return self._transform_fn(self._parent.compute(partition_idx))
+        assert self._transform_fn is not None
+        assert self._parent is not None
+        result = self._transform_fn(self._parent.compute(partition_idx))
+        # re-cache if this RDD has a partitions list (was previously cached)
+        if self._partitions:
+            self._partitions[partition_idx] = result
+        return result
     
+    def simulate_failure(self, partition_idx: int):
+        assert self._partitions, "can only simulate failure on a cached RDD"
+        self._partitions[partition_idx] = None
+
     def _compute_all(self):
         futures = [self._context._executor.submit(self.compute, i) for i in range(self.num_partitions)]
         return [f.result() for f in futures]
+
+    def cache(self):
+        self._partitions = self._compute_all()
+        return self
 
     def map(self, map_fn) -> RDD:
         def _transform(p: Partition) -> Partition:
