@@ -76,4 +76,7 @@ print(debug)
 assert "Stage 0" in debug
 assert "Stage 1" in debug
 
+dag_rdd.draw_dag().render('dag', view=True)
+print("DAG graph rendered to dag.svg")
+
 print("Step 6 passed!")
