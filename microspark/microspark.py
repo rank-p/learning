@@ -1,3 +1,4 @@
+from collections import defaultdict
 
 class Partition:
     def __init__(self, index: int, data):
@@ -52,7 +53,8 @@ class RDD:
 
         if not partials:
             raise ValueError("cannot reduce an empty RDD")
-    
+        
+        # reduce accross partitions
         acc = partials[0]
         for v in partials[1:]:
             acc = reduce_fn(acc, v)
@@ -85,6 +87,31 @@ class RDD:
     def values(self):
         return self.map(lambda x: x[1])
 
+    def groupByKey(self) -> RDD:
+        shuffled_rdd = ShuffledRDD(self._context, parent=self)
+        def _group(p: Partition):
+            groups = defaultdict(list)
+            for key, value in p.data:
+                groups[key].append(value)
+            return Partition(p._index, list(groups.items()))
+        return RDD(self._context, parent=shuffled_rdd, transform_fn=_group)
+    
+    def reduceByKey(self, reduce_fn) -> RDD:
+        def _reduce(p: Partition):
+            groups = {}
+            for (key, value) in p.data:
+                if key not in groups:
+                    groups[key] = value
+                else:
+                    groups[key] = reduce_fn(groups[key], value)
+            return Partition(p._index, list(groups.items()))
+        # pre-reduce in partitions
+        combined = RDD(self._context, parent=self, transform_fn=_reduce)
+        shuffled = ShuffledRDD(self._context, parent=combined)
+        return RDD(self._context, parent=shuffled, transform_fn=_reduce)
+            
+            
+
     @property
     def num_partitions(self) -> int:
         if self._partitions:
@@ -92,6 +119,36 @@ class RDD:
         if self._parent:
             return self._parent.num_partitions
         raise ValueError("Illegal state, neither _partitions nor _parent defined")
+
+class ShuffledRDD(RDD):
+
+    def __init__(self, context, parent: RDD, num_partitions=None):
+        assert parent is not None
+        super().__init__(context=context, partitions=None, parent=parent, transform_fn=None)
+        # If num_partitions is passed use that (repartition) or fallback to parent
+        n = num_partitions or parent.num_partitions
+        self.partitioner = HashPartitioner(num_partitions=n)
+
+    def compute(self, partition_idx: int) -> Partition:
+        if self._partitions:
+            return self._partitions[partition_idx]
+        
+        assert self._parent is not None
+        shuffled_data = []
+        for i in range(self.num_partitions):
+            p = self._parent.compute(i)
+            for (key, value) in p.data:
+                if self.partitioner.partition(key) == partition_idx:
+                    shuffled_data.append((key, value))
+        return Partition(partition_idx, shuffled_data)
+
+    @property
+    def num_partitions(self):
+        return self.partitioner.num_partitions
+                
+
+
+
 
 
 class SparkContext:
@@ -114,4 +171,12 @@ class SparkContext:
             partitions.append(Partition(i, data[start:end]))
         return RDD(self, partitions)
 
+class HashPartitioner:
+    
+    def __init__(self, num_partitions):
+        self.num_partitions = num_partitions
+
+    def partition(self, key):
+        # % function always returns positive results in python (hash can be negative)
+        return hash(key) % self.num_partitions
 
