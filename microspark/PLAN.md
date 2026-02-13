@@ -25,7 +25,7 @@ Minimal Apache Spark from scratch. Karpathy's micrograd, but for distributed dat
 - [x] **Step 7: Parallel execution**
   `ThreadPoolExecutor`, partitions compute in parallel within a stage
 
-- [ ] **Step 8: Fault tolerance via lineage**
+- [x] **Step 8: Fault tolerance via lineage**
   Cache partitions, simulate failure, recompute from lineage
 
 - [ ] **Step 9: Word count end-to-end**
