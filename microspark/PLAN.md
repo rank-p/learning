@@ -13,16 +13,16 @@ Minimal Apache Spark from scratch. Karpathy's micrograd, but for distributed dat
 - [x] **Step 3: More actions — count, reduce, take**
   Different ways to trigger computation and aggregate results
 
-- [ ] **Step 4: Key-value RDDs — mapValues, keys, values**
+- [x] **Step 4: Key-value RDDs — mapValues, keys, values**
   Pair RDDs: `(key, value)` tuples. Foundation for shuffle operations
 
-- [ ] **Step 5: Shuffle — groupByKey, reduceByKey**
+- [x] **Step 5: Shuffle — groupByKey, reduceByKey**
   Wide dependencies, `HashPartitioner`, shuffle write/read, map-side pre-aggregation
 
-- [ ] **Step 6: DAG visualization + stage splitting**
+- [x] **Step 6: DAG visualization + stage splitting**
   `toDebugString()`, walk lineage, split stages at shuffle boundaries
 
-- [ ] **Step 7: Parallel execution**
+- [x] **Step 7: Parallel execution**
   `ThreadPoolExecutor`, partitions compute in parallel within a stage
 
 - [ ] **Step 8: Fault tolerance via lineage**

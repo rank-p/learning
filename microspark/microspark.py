@@ -1,5 +1,6 @@
 from collections import defaultdict
 from graphviz import Digraph
+from concurrent.futures import ThreadPoolExecutor
 
 class Partition:
     def __init__(self, index: int, data):
@@ -22,6 +23,10 @@ class RDD:
             assert self._transform_fn is not None
             assert self._parent is not None
             return self._transform_fn(self._parent.compute(partition_idx))
+    
+    def _compute_all(self):
+        futures = [self._context._executor.submit(self.compute, i) for i in range(self.num_partitions)]
+        return [f.result() for f in futures]
 
     def map(self, map_fn) -> RDD:
         def _transform(p: Partition) -> Partition:
@@ -42,14 +47,13 @@ class RDD:
         return RDD(self._context, parent=self, transform_fn=_transform, name="filter")
 
     def reduce(self, reduce_fn):
-        # reduce within partitions
+        # reduce within partitions (parallel)
         partials = []
-        for i in range(self.num_partitions):
-            data = self.compute(i).data
-            if not data:
+        for p in self._compute_all():
+            if not p.data:
                 continue
-            acc = data[0]
-            for item in data[1:]:
+            acc = p.data[0]
+            for item in p.data[1:]:
                 acc = reduce_fn(acc, item)
             partials.append(acc)
 
@@ -63,7 +67,7 @@ class RDD:
         return acc
 
     def count(self) -> int:
-        return sum(len(self.compute(i).data) for i in range(self.num_partitions))
+        return sum(len(p.data) for p in self._compute_all())
 
     def take(self, n: int):
         res = []
@@ -75,8 +79,8 @@ class RDD:
 
     def collect(self) -> list:
         result = []
-        for i in range(self.num_partitions):
-            result.extend(self.compute(i).data)
+        for p in self._compute_all():
+            result.extend(p.data)
         return result
 
     def mapValues(self, map_fn):
@@ -192,35 +196,43 @@ class ShuffledRDD(RDD):
         self.partitioner = HashPartitioner(num_partitions=n)
 
     def compute(self, partition_idx: int) -> Partition:
+        self._materialize()
+        return self._partitions[partition_idx]
+
+    def _materialize(self):
         if self._partitions:
-            return self._partitions[partition_idx]
-        
+            return
         assert self._parent is not None
-        shuffled_data = []
-        for i in range(self.num_partitions):
+        # This leads to double work if multiple threads call compute at the same time
+        buckets = [[] for _ in range(self.partitioner.num_partitions)]
+        for i in range(self._parent.num_partitions):
             p = self._parent.compute(i)
-            for (key, value) in p.data:
-                if self.partitioner.partition(key) == partition_idx:
-                    shuffled_data.append((key, value))
-        return Partition(partition_idx, shuffled_data)
+            for key, value in p.data:
+                buckets[self.partitioner.partition(key)].append((key, value))
+        self._partitions = [Partition(i, buckets[i]) for i in range(len(buckets))]
 
     @property
     def num_partitions(self):
         return self.partitioner.num_partitions
                 
-
-
-
-
-
 class SparkContext:
 
-    def __init__(self):
-        pass
+    def __init__(self, max_workers=10):
+        self._executor = ThreadPoolExecutor(max_workers)
+
+    def stop(self):
+        self._executor.shutdown(wait=True)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+        return False
 
     def parallelize(self, data, num_partitions: int) -> RDD:
         if num_partitions <= 0:
-            return RDD(SparkContext(), [])
+            return RDD(self, [])
 
         chunk_size = len(data) // num_partitions
         partitions = []
