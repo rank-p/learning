@@ -1,0 +1,9 @@
+# agents.conf — one agent per line
+# format: <agent-id>  <aws-profile>  <workspace>  <command...>
+#
+# AWS profiles must exist in ~/.aws/credentials or ~/.aws/config on the host.
+# Each agent gets an isolated ~/.aws so credential refreshes never collide.
+
+agent-1  prod-account    /workspaces/project-a  python agent.py --task summarize
+agent-2  staging-acct    /workspaces/project-b  python agent.py --task review
+agent-3  dev-account     /workspaces/project-c  bash worker.sh
